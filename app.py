@@ -1,20 +1,32 @@
 import streamlit as st
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
 import numpy as np
 from PIL import Image
+import tflite_runtime.interpreter as tflite
 
-# Load your model
-model = load_model(r'D:\luminar\cnn project\cnn_model.h5')
+# Load your TFLite model
+interpreter = tflite.Interpreter(model_path=r'D:\luminar\cnn project\model.tflite')
+interpreter.allocate_tensors()
+
+# Get input and output tensors
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
 # Define a function to make predictions
 def predict_image(img):
     img = img.resize((150, 150))  # Resize image to match model's expected input size
-    img_array = image.img_to_array(img)
+    img_array = np.array(img, dtype=np.float32)
     img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
     img_array /= 255.0  # Normalize the image
-    predictions = model.predict(img_array)
-    return "NORMAL" if predictions[0][0] > 0.5 else "PNEUMONIA"
+
+    # Set the tensor to point to the input data to be inferred
+    interpreter.set_tensor(input_details[0]['index'], img_array)
+
+    # Run the inference
+    interpreter.invoke()
+
+    # Extract the output data
+    output_data = interpreter.get_tensor(output_details[0]['index'])
+    return "NORMAL" if output_data[0][0] > 0.5 else "PNEUMONIA"
 
 # Streamlit app
 st.title("Chest X-Ray Classification")
